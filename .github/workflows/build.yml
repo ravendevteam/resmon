@@ -1,0 +1,37 @@
+name: Build MacOS Executable
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.x'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install nuitka pyqt5 psutil
+    
+    - name: Set execute permission
+      run: chmod +x ./build-macos.sh
+
+    - name: Run build script
+      run: |
+        ./build-macos.sh
+
+    - name: Upload MacOS Executable
+      uses: actions/upload-artifact@v3
+      with:
+        name: macos-executable
+        path: ./dist/resmon.app
