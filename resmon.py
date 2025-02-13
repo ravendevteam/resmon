@@ -16,7 +16,7 @@ prevDrive = None
 class ProcessFetcher(QThread):
     update_processes = pyqtSignal(list)
     update_stats = pyqtSignal(float, float, str)
-    update_drives = pyqtSignal(list)  # Add this line
+    update_drives = pyqtSignal(list)
 
     def run(self):
         while True:
