@@ -6,14 +6,17 @@ import subprocess
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from PyQt5.QtGui import QFont
 from PyQt5.QtWidgets import (
-    QApplication, QMainWindow, QVBoxLayout, QAction, QWidget,
-    QDialog, QLineEdit, QFormLayout, QDialogButtonBox, QMessageBox,
-    QTableWidget, QHeaderView, QSplitter, QTableWidgetItem, QHBoxLayout, QLabel, QTextBrowser
+    QApplication, QMainWindow, QVBoxLayout, QHBoxLayout, QAction, QWidget,
+    QDialog, QLineEdit, QFormLayout, QDialogButtonBox, QMessageBox, 
+    QTableWidget, QHeaderView, QSplitter, QTableWidgetItem, QLabel, QTextBrowser, QTabWidget, QProgressBar
 )
+
+prevDrive = None
 
 class ProcessFetcher(QThread):
     update_processes = pyqtSignal(list)
     update_stats = pyqtSignal(float, float, str)
+    update_drives = pyqtSignal(list)  # Add this line
 
     def run(self):
         while True:
@@ -36,8 +39,10 @@ class ProcessFetcher(QThread):
             disk_info = psutil.disk_usage(boot_drive)
             total_disk = disk_info.total / (1024**3)
             used_disk = disk_info.used / (1024**3)
-            disk_display = f"{used_disk:.2f}GB/{total_disk:.2f}GB"
+            used_percentage = used_disk / total_disk * 100
+            disk_display = f"{used_percentage:.1f}%"
             self.update_stats.emit(cpu_usage, memory_info.percent, disk_display)
+            self.update_drives.emit(psutil.disk_partitions())
 
 class SystemInfoDialog(QDialog):
     def __init__(self, parent=None):
@@ -69,6 +74,7 @@ class Resmon(QMainWindow):
         self.init_ui()
         self.fetcher = ProcessFetcher()
         self.fetcher.update_processes.connect(self.update_process_table)
+        self.fetcher.update_drives.connect(self.update_drives)
         self.fetcher.update_stats.connect(self.update_stats)
         self.fetcher.start()
 
@@ -120,17 +126,24 @@ class Resmon(QMainWindow):
 
         self.cpu_column, self.cpu_label = create_stat_column("CPU")
         self.memory_column, self.memory_label = create_stat_column("Memory")
-        self.disk_column, self.disk_label = create_stat_column("Disk")
+        self.disk_column, self.disk_label = create_stat_column(f"Disk ({psutil.disk_partitions()[0].device})")
         stats_layout.addWidget(self.cpu_column)
         stats_layout.addWidget(self.memory_column)
         stats_layout.addWidget(self.disk_column)
         splitter.addWidget(top_widget)
         bottom_widget = QWidget(self)
         bottom_layout = QVBoxLayout(bottom_widget)
+        self.tabs = QTabWidget()
         self.process_table = QTableWidget(self)
         self.process_table.setColumnCount(6)
         self.process_table.setHorizontalHeaderLabels(["Process ID", "Program", "Threads", "User", "Memory", "CPU"])
-        bottom_layout.addWidget(self.process_table)
+        self.tabs.addTab(self.process_table, "Processes")
+        self.disk_tab = QWidget()
+        self.disk_tab_layout = QVBoxLayout(self.disk_tab)
+        self.disk_tab_layout.setAlignment(Qt.AlignTop)
+        self.disk_tab.setLayout(self.disk_tab_layout)
+        self.tabs.addTab(self.disk_tab, "Drives")
+        bottom_layout.addWidget(self.tabs)
         splitter.addWidget(bottom_widget)
         self.process_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         splitter.setSizes([int(self.height() * 0.10), int(self.height() * 0.90)])
@@ -184,6 +197,59 @@ class Resmon(QMainWindow):
             self.process_table.setItem(row_position, 3, QTableWidgetItem(user))
             self.process_table.setItem(row_position, 4, QTableWidgetItem(f"{memory:.2f} MB"))
             self.process_table.setItem(row_position, 5, QTableWidgetItem(f"{cpu:.1f}%"))
+
+    def update_drives(self, drive_data):
+        global prevDrive
+        if drive_data == prevDrive:
+            return
+        prevDrive = drive_data
+        disks = drive_data
+        for i in reversed(range(self.disk_tab_layout.count())):
+            self.disk_tab_layout.itemAt(i).widget().setParent(None)
+        for disk in disks:
+            drive_path = disk.device
+            try:
+                disk_info = psutil.disk_usage(drive_path)
+            except PermissionError:
+                continue
+            except OSError:
+                continue
+            disk_container = QVBoxLayout()
+            disk_container.setAlignment(Qt.AlignTop | Qt.AlignLeft)
+
+            disk_info = psutil.disk_usage(disk[1])
+            total_disk = disk_info.total
+            used_disk = disk_info.used
+            used_percentage = used_disk / total_disk * 100
+            used_percentage_100k = used_disk / total_disk * 100000
+
+            def format_size(size):
+                for unit in ['B', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB']:
+                    if size < 1024:
+                        return f"{size:.2f} {unit}"
+                    size /= 1024
+                return f"{size:.2f} YB"
+
+            total_disk_display = format_size(total_disk)
+            used_disk_display = format_size(used_disk)
+            disk_display = f"{used_disk_display}/{total_disk_display} ({used_percentage:.1f}%)"
+            disk_label = QLabel(f"{disk.device} ({disk.mountpoint})")
+            disk_label.setFont(QFont("Arial", 14, QFont.Bold))
+            disk_container.addWidget(disk_label)
+            filled_disk = QProgressBar()
+            filled_disk.setRange(0, 100000)
+            filled_disk.setValue(round(used_percentage_100k))
+            if used_percentage > 90:
+                filled_disk.setStyleSheet("QProgressBar::chunk { background-color: red; }")
+            filled_disk.setTextVisible(False)
+            disk_container.addWidget(filled_disk)
+            disk_usage_label = QLabel(disk_display)
+            disk_usage_label.setFont(QFont("Arial", 12))
+            disk_container.addWidget(disk_usage_label)
+            disk_widget = QWidget()
+            disk_widget.setLayout(disk_container)
+            self.disk_tab_layout.addWidget(disk_widget)
+
 
     def start_process(self):
         dialog = QDialog(self)
