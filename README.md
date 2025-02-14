@@ -23,3 +23,4 @@ To compile from source, make sure you have Python 3.12.4 or greater, and Nuitka,
 
 - [Raven Development Team](https://ravendevteam.org/)
 - [Icons by Icons8](https://icons8.com/)
+- [JanluOfficial](https://github.com/JanluOfficial)
