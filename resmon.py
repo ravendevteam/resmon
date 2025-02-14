@@ -16,7 +16,7 @@ prevDrive = None
 class ProcessFetcher(QThread):
     update_processes = pyqtSignal(list)
     update_stats = pyqtSignal(float, float, str)
-    update_drives = pyqtSignal(list)  # Add this line
+    update_drives = pyqtSignal(list)
 
     def run(self):
         while True:
@@ -44,6 +44,9 @@ class ProcessFetcher(QThread):
             self.update_stats.emit(cpu_usage, memory_info.percent, disk_display)
             self.update_drives.emit(psutil.disk_partitions())
 
+from PyQt5.QtWidgets import QDialog, QVBoxLayout, QComboBox, QLineEdit, QPushButton, QApplication
+import sys
+    
 class SystemInfoDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -99,6 +102,38 @@ class Resmon(QMainWindow):
         view_system_info_action = QAction("View System Information", self)
         view_system_info_action.triggered.connect(self.view_system_info)
         options_menu.addAction(view_system_info_action)
+        self.search_menu = menu_bar.addMenu("Search")
+        add_filter_menu = self.search_menu.addMenu("Add a filter")
+        pid_filter_action = QAction("Process ID", self)
+        pid_filter_action.triggered.connect(lambda: self.add_filter("Process ID", "pid:"))
+        user_filter_action = QAction("User", self)
+        user_filter_action.triggered.connect(lambda: self.add_filter("User", "user:"))
+        cpu_higher_filter_action = QAction("CPU Usage (greater than)", self)
+        cpu_higher_filter_action.triggered.connect(lambda: self.add_filter("CPU Usage (greater than)", "cpu>"))
+        cpu_lower_filter_action = QAction("CPU Usage (less than)", self)
+        cpu_lower_filter_action.triggered.connect(lambda: self.add_filter("CPU Usage (less than)", "cpu<"))
+        mem_higher_filter_action = QAction("Memory Usage (greater than)", self)
+        mem_higher_filter_action.triggered.connect(lambda: self.add_filter("Memory Usage (greater than)", "mem>"))
+        mem_lower_filter_action = QAction("Memory Usage (less than)", self)
+        mem_lower_filter_action.triggered.connect(lambda: self.add_filter("Memory Usage (less than)", "mem<"))
+        threads_higher_filter_action = QAction("Threads (greater than)", self)
+        threads_higher_filter_action.triggered.connect(lambda: self.add_filter("Threads (greater than)", "threads>"))
+        threads_lower_filter_action = QAction("Threads (less than)", self)
+        threads_lower_filter_action.triggered.connect(lambda: self.add_filter("Threads (less than)", "threads<"))
+        add_filter_menu.addAction(pid_filter_action)
+        add_filter_menu.addAction(user_filter_action)
+        add_filter_menu.addAction(cpu_higher_filter_action)
+        add_filter_menu.addAction(cpu_lower_filter_action)
+        add_filter_menu.addAction(mem_higher_filter_action)
+        add_filter_menu.addAction(mem_lower_filter_action)
+        add_filter_menu.addAction(threads_higher_filter_action)
+        add_filter_menu.addAction(threads_lower_filter_action)
+        self.exact_match_checkable_action = QAction("Exact Match", self, checkable=True)
+        self.search_menu.addAction(self.exact_match_checkable_action)
+        self.clear_search_action = QAction("Clear Search", self)
+        self.clear_search_action.setEnabled(False)
+        self.clear_search_action.triggered.connect(lambda: self.process_search.setText(""))
+        self.search_menu.addAction(self.clear_search_action)
         splitter = QSplitter(Qt.Vertical)
         main_layout.addWidget(splitter)
         top_widget = QWidget(self)
@@ -133,17 +168,28 @@ class Resmon(QMainWindow):
         splitter.addWidget(top_widget)
         bottom_widget = QWidget(self)
         bottom_layout = QVBoxLayout(bottom_widget)
-        self.tabs = QTabWidget()
+        tabs = QTabWidget()
+        tabs.currentChanged.connect(self.tab_changed)
+        process_layout = QVBoxLayout()
+        process_filter_layout = QHBoxLayout()
+        self.process_search = QLineEdit()
+        self.process_search.textChanged.connect(self.search_updated)
+        self.process_search.setPlaceholderText("Search processes")
+        process_filter_layout.addWidget(self.process_search)
+        process_layout.addLayout(process_filter_layout)
         self.process_table = QTableWidget(self)
         self.process_table.setColumnCount(6)
         self.process_table.setHorizontalHeaderLabels(["Process ID", "Program", "Threads", "User", "Memory", "CPU"])
-        self.tabs.addTab(self.process_table, "Processes")
+        process_layout.addWidget(self.process_table)
+        process_widget = QWidget()
+        process_widget.setLayout(process_layout)
+        tabs.addTab(process_widget, "Processes")
         self.disk_tab = QWidget()
         self.disk_tab_layout = QVBoxLayout(self.disk_tab)
         self.disk_tab_layout.setAlignment(Qt.AlignTop)
         self.disk_tab.setLayout(self.disk_tab_layout)
-        self.tabs.addTab(self.disk_tab, "Drives")
-        bottom_layout.addWidget(self.tabs)
+        tabs.addTab(self.disk_tab, "Drives")
+        bottom_layout.addWidget(tabs)
         splitter.addWidget(bottom_widget)
         self.process_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         splitter.setSizes([int(self.height() * 0.10), int(self.height() * 0.90)])
@@ -163,6 +209,13 @@ class Resmon(QMainWindow):
         else:
             base_path = os.path.dirname(__file__)
         return os.path.join(base_path, 'style.css')
+
+    def tab_changed(self, index):
+        self.search_menu.menuAction().setVisible(index == 0)
+
+    def search_updated(self):
+        search_text = self.process_search.text().strip()
+        self.clear_search_action.setEnabled(bool(search_text))
 
     def update_stats(self, cpu_usage, memory_usage, disk_usage):
         total_cpu_percent = 0
@@ -189,6 +242,100 @@ class Resmon(QMainWindow):
             cpu = process[5]
             if not program_name:
                 continue
+
+            search_text = self.process_search.text().lower().strip()
+            if search_text:
+                tokens = search_text.split()
+                match = True
+                for token in tokens:
+                    if token.startswith("pid:"):
+                        try:
+                            pid = int(token.split(":", 1)[1])
+                        except ValueError:
+                            match = False
+                            break
+                        if not str(pid) in str(process_id) and not self.exact_match_checkable_action.isChecked():
+                            match = False
+                            break
+                        elif str(pid) != str(process_id) and self.exact_match_checkable_action.isChecked():
+                            match = False
+                            break
+                    elif token.startswith("user:"):
+                        search_user = token.split(":", 1)[1]
+                        if search_user:
+                            try:
+                                if search_user not in user.lower() and not self.exact_match_checkable_action.isChecked():
+                                    match = False
+                                    break
+                                elif search_user != user.lower() and self.exact_match_checkable_action.isChecked():
+                                    match = False
+                                    break
+                            except AttributeError:
+                                continue
+                    elif token.startswith("cpu>"):
+                        try:
+                            cpu_threshold = float(token.split(">", 1)[1])
+                        except ValueError:
+                            match = False
+                            break
+                        if cpu <= cpu_threshold:
+                            match = False
+                            break
+                    elif token.startswith("cpu<"):
+                        try:
+                            cpu_threshold = float(token.split("<", 1)[1])
+                        except ValueError:
+                            match = False
+                            break
+                        if cpu >= cpu_threshold:
+                            match = False
+                            break
+                    elif token.startswith("mem>"):
+                        try:
+                            mem_threshold = float(token.split(">", 1)[1])
+                        except ValueError:
+                            match = False
+                            break
+                        if memory <= mem_threshold:
+                            match = False
+                            break
+                    elif token.startswith("mem<"):
+                        try:
+                            mem_threshold = float(token.split("<", 1)[1])
+                        except ValueError:
+                            match = False
+                            break
+                        if memory >= mem_threshold:
+                            match = False
+                            break
+                    elif token.startswith("threads>"):
+                        try:
+                            threads_threshold = int(token.split(">", 1)[1])
+                        except ValueError:
+                            match = False
+                            break
+                        if threads <= threads_threshold:
+                            match = False
+                            break
+                    elif token.startswith("threads<"):
+                        try:
+                            threads_threshold = int(token.split("<", 1)[1])
+                        except ValueError:
+                            match = False
+                            break
+                        if threads >= threads_threshold:
+                            match = False
+                            break
+                    else:
+                        if token not in program_name.lower() and not self.exact_match_checkable_action.isChecked():
+                            match = False
+                            break
+                        elif token != program_name.lower() and self.exact_match_checkable_action.isChecked():
+                            match = False
+                            break
+                if not match:
+                    continue
+
             row_position = self.process_table.rowCount()
             self.process_table.insertRow(row_position)
             self.process_table.setItem(row_position, 0, QTableWidgetItem(str(process_id)))
@@ -239,8 +386,7 @@ class Resmon(QMainWindow):
             filled_disk = QProgressBar()
             filled_disk.setRange(0, 100000)
             filled_disk.setValue(round(used_percentage_100k))
-            if used_percentage > 90:
-                filled_disk.setStyleSheet("QProgressBar::chunk { background-color: red; }")
+            filled_disk.setProperty("almostFull", used_percentage >= 90)
             filled_disk.setTextVisible(False)
             disk_container.addWidget(filled_disk)
             disk_usage_label = QLabel(disk_display)
@@ -250,6 +396,21 @@ class Resmon(QMainWindow):
             disk_widget.setLayout(disk_container)
             self.disk_tab_layout.addWidget(disk_widget)
 
+    def add_filter(self, filter_type, filter_prefix):
+        filter_dialog = QDialog(self, Qt.WindowCloseButtonHint)
+        filter_dialog.setWindowTitle(f"{filter_type}")
+        layout = QVBoxLayout(filter_dialog)
+        filter_input = QLineEdit()
+        layout.addWidget(filter_input)
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons.accepted.connect(lambda: self.apply_filter(filter_dialog, filter_prefix, filter_input.text()))
+        buttons.rejected.connect(filter_dialog.reject)
+        layout.addWidget(buttons)
+        filter_dialog.exec_()
+
+    def apply_filter(self, dialog, filter_prefix, filter_text):
+        self.process_search.setText(f"{self.process_search.text()} {filter_prefix}{filter_text}")
+        dialog.accept()
 
     def start_process(self):
         dialog = QDialog(self)

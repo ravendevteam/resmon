@@ -38,7 +38,7 @@ QMenuBar::item {
 
 /* Menu bar options when selected */
 QMenuBar::item:selected {
-    background: #000000;
+    background: #2c2c2c;
 }
 
 /* Buttons */
@@ -78,4 +78,187 @@ QScrollBar:vertical, QDialog QScrollBar:vertical {
 QScrollBar::handle:horizontal, QScrollBar::handle:vertical, QDialog QScrollBar::handle:horizontal, QDialog QScrollBar::handle:vertical {
     background: #cccccc;
     border-radius: 5px;
+}
+
+/* Tabs */
+QTabWidget::pane {
+    border: 1px solid #0c0c0c;
+    background: "white";
+}
+
+QTabWidget::tab-bar:top {
+    top: 1px;
+}
+
+QTabWidget::tab-bar:bottom {
+    bottom: 1px;
+}
+
+QTabWidget::tab-bar:left {
+    right: 1px;
+}
+
+QTabWidget::tab-bar:right {
+    left: 1px;
+}
+
+QTabBar::tab {
+    border-top: 1px solid #0c0c0c;
+    border-left: 1px solid #0c0c0c;
+    border-right: 1px solid #0c0c0c;
+    background: #0c0c0c;
+    color: white;
+}
+
+QTabBar::tab:selected {
+    background: white;
+    color: #0c0c0c;
+}
+
+QTabBar::tab:!selected {
+    background: #0c0c0c;
+    color: white;
+}
+
+QTabBar::tab:!selected:hover {
+    background: #2c2c2c;
+}
+
+QTabBar::tab:top:!selected {
+    margin-top: 3px;
+}
+
+QTabBar::tab:bottom:!selected {
+    margin-bottom: 3px;
+}
+
+QTabBar::tab:top, QTabBar::tab:bottom {
+    min-width: 8ex;
+    margin-right: -1px;
+    padding: 5px 10px 5px 10px;
+}
+
+QTabBar::tab:top:selected {
+    border-bottom-color: none;
+}
+
+QTabBar::tab:bottom:selected {
+    border-top-color: none;
+}
+
+QTabBar::tab:top:last, QTabBar::tab:bottom:last,
+QTabBar::tab:top:only-one, QTabBar::tab:bottom:only-one {
+    margin-right: 0;
+}
+
+QTabBar::tab:left:!selected {
+    margin-right: 3px;
+}
+
+QTabBar::tab:right:!selected {
+    margin-left: 3px;
+}
+
+QTabBar::tab:left, QTabBar::tab:right {
+    min-height: 8ex;
+    margin-bottom: -1px;
+    padding: 10px 5px 10px 5px;
+}
+
+QTabBar::tab:left:selected {
+    border-left-color: none;
+}
+
+QTabBar::tab:right:selected {
+    border-right-color: none;
+}
+
+QTabBar::tab:left:last, QTabBar::tab:right:last,
+QTabBar::tab:left:only-one, QTabBar::tab:right:only-one {
+    margin-bottom: 0;
+}
+
+/* Table */
+QTableWidget {
+    border: 1px solid transparent;
+    background: white;
+}
+
+/* Menus */
+QMenu {
+    padding: 4px;
+    background-color: #ffffff;
+    border: 1px solid #0c0c0c;
+    color: #0c0c0c;
+}
+
+QMenu::item {
+    background-color: #ffffff;
+    color: #0c0c0c;
+}
+
+QMenu::item:selected {
+    background-color: #0c0c0c;
+    color: #ffffff;
+}
+
+QMenu::item:disabled {
+    color: #8c8c8c;
+}
+
+QMenu::item:disabled:selected {
+    background-color: #f5f5f5;
+    color: #8c8c8c;
+}
+
+/* Progress Bar */
+QProgressBar {
+    border: 2px solid #0c0c0c;
+    padding: 2px;
+    background-color: #ffffff;
+    text-align: center;
+    color: black;
+}
+
+QProgressBar[almostFull="true"]::chunk {
+    background-color: qlineargradient(x1: 0, y1: 0, x2: 1, y2: 0,
+                                      stop: 0 #0c0c0c, stop: 1 #7f0000);
+}
+QProgressBar[almostFull="false"]::chunk {
+    background-color: #0c0c0c;
+}
+
+/* Dropdowns */
+QComboBox, QDialog QComboBox {
+    background: transparent;
+    border: 1px solid #cccccc;
+    color: #000000;
+    padding: 5px 10px;
+}
+
+QComboBox:hover, QDialog QComboBox:hover {
+    background-color: #f5f5f5;
+}
+
+QComboBox::drop-down {
+    border: none;
+    background: transparent;
+}
+QComboBox::down-arrow {
+    image: url(down.png);
+    width: 10px;
+    height: 10px;
+}
+
+/* Dropdown Items */
+QComboBox QAbstractItemView {
+    selection-background-color: #0c0c0c;
+    selection-color: #ffffff;
+    padding: 4px;
+    background: #ffffff;
+    color: #0c0c0c;
+}
+
+QComboBox QAbstractItemView::item {
+    padding: 2px;
 }
