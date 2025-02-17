@@ -186,7 +186,7 @@ QTableWidget {
 
 /* Menus */
 QMenu {
-    padding: 4px;
+    /* padding: 4px; */
     background-color: #ffffff;
     border: 1px solid #0c0c0c;
     color: #0c0c0c;
