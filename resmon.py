@@ -7,7 +7,7 @@ from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from PyQt5.QtGui import QFont
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QVBoxLayout, QHBoxLayout, QAction, QWidget,
-    QDialog, QLineEdit, QFormLayout, QDialogButtonBox, QMessageBox, 
+    QDialog, QLineEdit, QFormLayout, QDialogButtonBox, QMessageBox, QMenu,
     QTableWidget, QHeaderView, QSplitter, QTableWidgetItem, QLabel, QTextBrowser, QTabWidget, QProgressBar
 )
 
@@ -69,7 +69,7 @@ class Resmon(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Resmon")
-        self.setGeometry(100, 100, 770, 750)
+        self.setGeometry(100, 100, 770, 700)
         self.always_on_top = False
         self.init_ui()
         self.fetcher = ProcessFetcher()
@@ -137,6 +137,8 @@ class Resmon(QMainWindow):
         self.process_table = QTableWidget(self)
         self.process_table.setColumnCount(6)
         self.process_table.setHorizontalHeaderLabels(["Process ID", "Program", "Threads", "User", "Memory", "CPU"])
+        self.process_table.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.process_table.customContextMenuRequested.connect(self.show_process_context_menu)
         self.tabs.addTab(self.process_table, "Processes")
         self.disk_tab = QWidget()
         self.disk_tab_layout = QVBoxLayout(self.disk_tab)
@@ -216,7 +218,6 @@ class Resmon(QMainWindow):
                 continue
             disk_container = QVBoxLayout()
             disk_container.setAlignment(Qt.AlignTop | Qt.AlignLeft)
-
             disk_info = psutil.disk_usage(disk[1])
             total_disk = disk_info.total
             used_disk = disk_info.used
@@ -229,7 +230,6 @@ class Resmon(QMainWindow):
                         return f"{size:.2f} {unit}"
                     size /= 1024
                 return f"{size:.2f} YB"
-
             total_disk_display = format_size(total_disk)
             used_disk_display = format_size(used_disk)
             disk_display = f"{used_disk_display}/{total_disk_display} ({used_percentage:.1f}%)"
@@ -283,6 +283,20 @@ class Resmon(QMainWindow):
     def view_system_info(self):
         dialog = SystemInfoDialog(self)
         dialog.exec_()
+
+    def show_process_context_menu(self, position):
+        item = self.process_table.itemAt(position)
+        if item is None:
+            return
+        row = item.row()
+        self.process_table.setSelectionMode(QTableWidget.SingleSelection)
+        self.process_table.setSelectionBehavior(QTableWidget.SelectRows)
+        self.process_table.selectRow(row)
+        menu = QMenu(self)
+        terminate_action = QAction("Force Terminate", self)
+        terminate_action.triggered.connect(lambda: self.force_terminate_process(row))
+        menu.addAction(terminate_action)
+        menu.exec_(self.process_table.viewport().mapToGlobal(position))
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
