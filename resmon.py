@@ -90,7 +90,7 @@ class SystemInfoDialog(QDialog):
 
     def display_system_info(self):
         try:
-            process = subprocess.Popen("systeminfo", stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, shell=True)
+            process = subprocess.Popen("systeminfo", stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True, encoding="mbcs")
             stdout, stderr = process.communicate()
             if process.returncode == 0:
                 self.info_browser.setPlainText(stdout)
