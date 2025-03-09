@@ -71,6 +71,7 @@ class Resmon(QMainWindow):
         self.setWindowTitle("Resmon")
         self.setGeometry(100, 100, 770, 700)
         self.always_on_top = False
+        self.selected_pid = None
         self.init_ui()
         self.fetcher = ProcessFetcher()
         self.fetcher.update_processes.connect(self.update_process_table)
@@ -179,10 +180,33 @@ class Resmon(QMainWindow):
         self.memory_label.setText(f"{memory_usage:.1f}%")
         self.disk_label.setText(disk_usage)
 
+    def force_terminate_selected_processes(self):
+        if not hasattr(self, "selected_pids") or not self.selected_pids:
+            QMessageBox.warning(self, "Error", "No processes selected.")
+            return
+        for pid in self.selected_pids:
+            try:
+                process = psutil.Process(pid)
+                process.kill()
+            except psutil.AccessDenied:
+                try:
+                    process.terminate()
+                except psutil.AccessDenied:
+                    QMessageBox.critical(self, "Error", f"Permission denied for PID {pid}. Try running as administrator.")
+                except psutil.NoSuchProcess:
+                    QMessageBox.warning(self, "Error", f"Process {pid} no longer exists.")
+                except Exception as e:
+                    QMessageBox.critical(self, "Error", f"Failed to terminate process {pid}: {e}")
+            except psutil.NoSuchProcess:
+                QMessageBox.warning(self, "Error", f"Process {pid} no longer exists.")
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"Failed to force terminate process {pid}: {e}")
+
     def update_process_table(self, process_data):
         self.process_table.setRowCount(0)
         sorted_process_data = sorted(process_data, key=lambda x: x[1].lower())
-        for process in sorted_process_data:
+        row_to_select = None
+        for index, process in enumerate(sorted_process_data):
             process_id = process[0]
             program_name = process[1]
             threads = process[2]
@@ -199,6 +223,10 @@ class Resmon(QMainWindow):
             self.process_table.setItem(row_position, 3, QTableWidgetItem(user))
             self.process_table.setItem(row_position, 4, QTableWidgetItem(f"{memory:.2f} MB"))
             self.process_table.setItem(row_position, 5, QTableWidgetItem(f"{cpu:.1f}%"))
+            if self.selected_pid and self.selected_pid == process_id:
+                row_to_select = row_position
+        if row_to_select is not None:
+            self.process_table.selectRow(row_to_select)
 
     def update_drives(self, drive_data):
         global prevDrive
@@ -250,7 +278,6 @@ class Resmon(QMainWindow):
             disk_widget.setLayout(disk_container)
             self.disk_tab_layout.addWidget(disk_widget)
 
-
     def start_process(self):
         dialog = QDialog(self)
         dialog.setWindowTitle("Start a Process")
@@ -285,16 +312,16 @@ class Resmon(QMainWindow):
         dialog.exec_()
 
     def show_process_context_menu(self, position):
-        item = self.process_table.itemAt(position)
-        if item is None:
+        selected_rows = set(index.row() for index in self.process_table.selectionModel().selectedRows())
+
+        if not selected_rows:
             return
-        row = item.row()
-        self.process_table.setSelectionMode(QTableWidget.SingleSelection)
-        self.process_table.setSelectionBehavior(QTableWidget.SelectRows)
-        self.process_table.selectRow(row)
+        self.selected_pids = [
+            int(self.process_table.item(row, 0).text()) for row in selected_rows
+        ]
         menu = QMenu(self)
         terminate_action = QAction("Force Terminate", self)
-        terminate_action.triggered.connect(lambda: self.force_terminate_process(row))
+        terminate_action.triggered.connect(self.force_terminate_selected_processes)
         menu.addAction(terminate_action)
         menu.exec_(self.process_table.viewport().mapToGlobal(position))
 
