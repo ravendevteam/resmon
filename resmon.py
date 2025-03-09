@@ -1,3 +1,4 @@
+""" Import the necessary modules for the program to work """
 import sys
 import os
 import psutil
@@ -13,6 +14,9 @@ from PyQt5.QtWidgets import (
 
 prevDrive = None
 
+
+
+""" Function to load the CSS style for the program """
 def loadStyle():
     user_css_path = os.path.join(os.path.expanduser("~"), "rmstyle.css")
     stylesheet = None
@@ -39,6 +43,9 @@ def loadStyle():
         else:
             print("No QApplication instance found. Stylesheet not applied.")
 
+
+
+""" Thread for fetching the processes """
 class ProcessFetcher(QThread):
     update_processes = pyqtSignal(list)
     update_stats = pyqtSignal(float, float, str)
@@ -70,6 +77,9 @@ class ProcessFetcher(QThread):
             self.update_stats.emit(cpu_usage, memory_info.percent, disk_display)
             self.update_drives.emit(psutil.disk_partitions())
 
+
+
+""" Dialog for displaying System Information """
 class SystemInfoDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -91,6 +101,9 @@ class SystemInfoDialog(QDialog):
         except Exception as e:
             self.info_browser.setPlainText(f"An error occurred: {str(e)}")
 
+
+
+""" Main class for the program """
 class Resmon(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -347,6 +360,9 @@ class Resmon(QMainWindow):
         dialog = SystemInfoDialog(self)
         dialog.exec_()
 
+
+
+""" Dialog for starting a process """
 class StartProcessDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
