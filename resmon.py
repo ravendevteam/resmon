@@ -33,7 +33,7 @@ class ProcessFetcher(QThread):
                     round(proc.info['cpu_percent'], 1)
                 ])
             self.update_processes.emit(processes_info)
-            cpu_usage = psutil.cpu_percent(interval=2)
+            cpu_usage = psutil.cpu_percent(interval=1)
             memory_info = psutil.virtual_memory()
             boot_drive = psutil.disk_partitions()[0].device
             disk_info = psutil.disk_usage(boot_drive)
@@ -100,6 +100,13 @@ class Resmon(QMainWindow):
         view_system_info_action = QAction("View System Information", self)
         view_system_info_action.triggered.connect(self.view_system_info)
         options_menu.addAction(view_system_info_action)
+        self.process_table = QTableWidget(self)
+        self.process_table.setSelectionBehavior(QTableWidget.SelectRows)
+        self.process_table.setSelectionMode(QTableWidget.SingleSelection)
+        self.process_table.setColumnCount(6)
+        self.process_table.setHorizontalHeaderLabels(["Process ID", "Program", "Threads", "User", "Memory", "CPU"])
+        self.process_table.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.process_table.customContextMenuRequested.connect(self.show_process_context_menu)
         splitter = QSplitter(Qt.Vertical)
         main_layout.addWidget(splitter)
         top_widget = QWidget(self)
@@ -135,11 +142,6 @@ class Resmon(QMainWindow):
         bottom_widget = QWidget(self)
         bottom_layout = QVBoxLayout(bottom_widget)
         self.tabs = QTabWidget()
-        self.process_table = QTableWidget(self)
-        self.process_table.setColumnCount(6)
-        self.process_table.setHorizontalHeaderLabels(["Process ID", "Program", "Threads", "User", "Memory", "CPU"])
-        self.process_table.setContextMenuPolicy(Qt.CustomContextMenu)
-        self.process_table.customContextMenuRequested.connect(self.show_process_context_menu)
         self.tabs.addTab(self.process_table, "Processes")
         self.disk_tab = QWidget()
         self.disk_tab_layout = QVBoxLayout(self.disk_tab)
@@ -168,39 +170,9 @@ class Resmon(QMainWindow):
         return os.path.join(base_path, 'style.css')
 
     def update_stats(self, cpu_usage, memory_usage, disk_usage):
-        total_cpu_percent = 0
-        for row in range(self.process_table.rowCount()):
-            cpu_item = self.process_table.item(row, 5)
-            if cpu_item:
-                try:
-                    total_cpu_percent += float(cpu_item.text().rstrip('%'))
-                except ValueError:
-                    pass
         self.cpu_label.setText(f"{cpu_usage:.1f}%")
         self.memory_label.setText(f"{memory_usage:.1f}%")
         self.disk_label.setText(disk_usage)
-
-    def force_terminate_selected_processes(self):
-        if not hasattr(self, "selected_pids") or not self.selected_pids:
-            QMessageBox.warning(self, "Error", "No processes selected.")
-            return
-        for pid in self.selected_pids:
-            try:
-                process = psutil.Process(pid)
-                process.kill()
-            except psutil.AccessDenied:
-                try:
-                    process.terminate()
-                except psutil.AccessDenied:
-                    QMessageBox.critical(self, "Error", f"Permission denied for PID {pid}. Try running as administrator.")
-                except psutil.NoSuchProcess:
-                    QMessageBox.warning(self, "Error", f"Process {pid} no longer exists.")
-                except Exception as e:
-                    QMessageBox.critical(self, "Error", f"Failed to terminate process {pid}: {e}")
-            except psutil.NoSuchProcess:
-                QMessageBox.warning(self, "Error", f"Process {pid} no longer exists.")
-            except Exception as e:
-                QMessageBox.critical(self, "Error", f"Failed to force terminate process {pid}: {e}")
 
     def update_process_table(self, process_data):
         self.process_table.setRowCount(0)
@@ -258,6 +230,7 @@ class Resmon(QMainWindow):
                         return f"{size:.2f} {unit}"
                     size /= 1024
                 return f"{size:.2f} YB"
+
             total_disk_display = format_size(total_disk)
             used_disk_display = format_size(used_disk)
             disk_display = f"{used_disk_display}/{total_disk_display} ({used_percentage:.1f}%)"
@@ -312,12 +285,11 @@ class Resmon(QMainWindow):
         dialog.exec_()
 
     def show_process_context_menu(self, position):
-        selected_rows = set(index.row() for index in self.process_table.selectionModel().selectedRows())
-
+        selected_rows = self.process_table.selectionModel().selectedRows()
         if not selected_rows:
             return
         self.selected_pids = [
-            int(self.process_table.item(row, 0).text()) for row in selected_rows
+            int(self.process_table.item(row.row(), 0).text()) for row in selected_rows
         ]
         menu = QMenu(self)
         terminate_action = QAction("Force Terminate", self)
@@ -325,8 +297,51 @@ class Resmon(QMainWindow):
         menu.addAction(terminate_action)
         menu.exec_(self.process_table.viewport().mapToGlobal(position))
 
-if __name__ == '__main__':
+    def force_terminate_selected_processes(self):
+        for pid in self.selected_pids:
+            try:
+                process = psutil.Process(pid)
+                process.terminate()
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                pass
+
+    def start_process(self):
+        dialog = StartProcessDialog(self)
+        if dialog.exec_():
+            self.fetcher.start()
+
+    def toggle_always_on_top(self):
+        self.always_on_top = not self.always_on_top
+        self.setWindowFlags(
+            Qt.WindowStaysOnTopHint if self.always_on_top else Qt.Window
+        )
+        self.show()
+
+    def view_system_info(self):
+        dialog = SystemInfoDialog(self)
+        dialog.exec_()
+
+class StartProcessDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Start a Process")
+        layout = QFormLayout(self)
+        self.process_name_edit = QLineEdit(self)
+        layout.addRow("Process Name:", self.process_name_edit)
+        self.buttons = QDialogButtonBox(
+            QDialogButtonBox.Ok | QDialogButtonBox.Cancel, self)
+        layout.addWidget(self.buttons)
+        self.buttons.accepted.connect(self.accept)
+        self.buttons.rejected.connect(self.reject)
+
+    def accept(self):
+        process_name = self.process_name_edit.text()
+        if process_name:
+            subprocess.Popen(process_name)
+        super().accept()
+
+if __name__ == "__main__":
     app = QApplication(sys.argv)
-    viewer = Resmon()
-    viewer.show()
+    window = Resmon()
+    window.show()
     sys.exit(app.exec_())
