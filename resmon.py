@@ -13,6 +13,32 @@ from PyQt5.QtWidgets import (
 
 prevDrive = None
 
+def loadStyle():
+    user_css_path = os.path.join(os.path.expanduser("~"), "rmstyle.css")
+    stylesheet = None
+    if os.path.exists(user_css_path):
+        try:
+            with open(user_css_path, 'r') as css_file:
+                stylesheet = css_file.read()
+            print(f"Loaded user CSS style from: {user_css_path}")
+        except Exception as e:
+            print(f"Error loading user CSS: {e}")
+    else:
+        css_file_path = os.path.join(os.path.dirname(__file__), 'style.css')
+        if getattr(sys, 'frozen', False):
+            css_file_path = os.path.join(sys._MEIPASS, 'style.css')
+        try:
+            with open(css_file_path, 'r') as css_file:
+                stylesheet = css_file.read()
+        except FileNotFoundError:
+            print(f"Default CSS file not found: {css_file_path}")
+    if stylesheet:
+        app = QApplication.instance()
+        if app:
+            app.setStyleSheet(stylesheet)
+        else:
+            print("No QApplication instance found. Stylesheet not applied.")
+
 class ProcessFetcher(QThread):
     update_processes = pyqtSignal(list)
     update_stats = pyqtSignal(float, float, str)
@@ -80,7 +106,7 @@ class Resmon(QMainWindow):
         self.fetcher.start()
 
     def init_ui(self):
-        self.apply_stylesheet()
+        loadStyle()
         main_widget = QWidget(self)
         self.setCentralWidget(main_widget)
         main_layout = QVBoxLayout(main_widget)
