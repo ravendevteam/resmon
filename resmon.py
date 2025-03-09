@@ -12,8 +12,6 @@ from PyQt5.QtWidgets import (
     QTableWidget, QHeaderView, QSplitter, QTableWidgetItem, QLabel, QTextBrowser, QTabWidget, QProgressBar
 )
 
-prevDrive = None
-
 
 
 """ Function to load the CSS style for the program """
@@ -111,6 +109,7 @@ class Resmon(QMainWindow):
         self.setGeometry(100, 100, 770, 700)
         self.always_on_top = False
         self.selected_pid = None
+        self.prev_drive = None
         self.init_ui()
         self.fetcher = ProcessFetcher()
         self.fetcher.update_processes.connect(self.update_process_table)
@@ -240,10 +239,9 @@ class Resmon(QMainWindow):
             self.process_table.selectRow(row_to_select)
 
     def update_drives(self, drive_data):
-        global prevDrive
-        if drive_data == prevDrive:
+        if drive_data == self.prev_drive:
             return
-        prevDrive = drive_data
+        self.prev_drive = drive_data
         disks = drive_data
         for i in reversed(range(self.disk_tab_layout.count())):
             self.disk_tab_layout.itemAt(i).widget().setParent(None)
