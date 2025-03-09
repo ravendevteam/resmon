@@ -6,14 +6,12 @@
 
 A fast, lightweight system resource monitor.
 
-Made for Windows 10/11 and MacOS.
-
-Linux is likely functional, however it is not officially supported. Linux binaries will not be released officially, so you will need to compile from source yourself to obtain a linux executable.
+Made for Windows 11.
 
 ## Installation
-See [Releases](https://github.com/ravendevteam/resmon/releases). Download the latest version for your platform (Windows or macOS currently available).
+You can download Resmon [here](https://ravendevteam.org/software/resmon).
 
-To compile from source, make sure you have Python 3.12.4 or greater, and Nuitka, then run either `build.bat`, `build-macos.sh` or `build-linux.sh`, depending on your platform (Windows, MacOS, or Linux).
+To compile from source, make sure you have Python 3.12.4, and Nuitka. Install the necessary dependencies from `requirements.txt`, then run `build.bat`.
 
 ## Screenshots
 
