@@ -1,3 +1,4 @@
+""" Import the necessary modules for the program to work """
 import sys
 import os
 import psutil
@@ -11,8 +12,9 @@ from PyQt5.QtWidgets import (
     QTableWidget, QHeaderView, QSplitter, QTableWidgetItem, QLabel, QTextBrowser, QTabWidget, QProgressBar
 )
 
-prevDrive = None
 
+
+""" Function to load the CSS style for the program """
 def loadStyle():
     user_css_path = os.path.join(os.path.expanduser("~"), "rmstyle.css")
     stylesheet = None
@@ -39,6 +41,9 @@ def loadStyle():
         else:
             print("No QApplication instance found. Stylesheet not applied.")
 
+
+
+""" Thread for fetching the processes """
 class ProcessFetcher(QThread):
     update_processes = pyqtSignal(list)
     update_stats = pyqtSignal(float, float, str)
@@ -70,6 +75,9 @@ class ProcessFetcher(QThread):
             self.update_stats.emit(cpu_usage, memory_info.percent, disk_display)
             self.update_drives.emit(psutil.disk_partitions())
 
+
+
+""" Dialog for displaying System Information """
 class SystemInfoDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -82,7 +90,7 @@ class SystemInfoDialog(QDialog):
 
     def display_system_info(self):
         try:
-            process = subprocess.Popen("systeminfo", stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, shell=True)
+            process = subprocess.Popen("systeminfo", stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True, encoding="mbcs")
             stdout, stderr = process.communicate()
             if process.returncode == 0:
                 self.info_browser.setPlainText(stdout)
@@ -91,6 +99,9 @@ class SystemInfoDialog(QDialog):
         except Exception as e:
             self.info_browser.setPlainText(f"An error occurred: {str(e)}")
 
+
+
+""" Main class for the program """
 class Resmon(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -98,6 +109,7 @@ class Resmon(QMainWindow):
         self.setGeometry(100, 100, 770, 700)
         self.always_on_top = False
         self.selected_pid = None
+        self.prev_drive = None
         self.init_ui()
         self.fetcher = ProcessFetcher()
         self.fetcher.update_processes.connect(self.update_process_table)
@@ -227,10 +239,9 @@ class Resmon(QMainWindow):
             self.process_table.selectRow(row_to_select)
 
     def update_drives(self, drive_data):
-        global prevDrive
-        if drive_data == prevDrive:
+        if drive_data == self.prev_drive:
             return
-        prevDrive = drive_data
+        self.prev_drive = drive_data
         disks = drive_data
         for i in reversed(range(self.disk_tab_layout.count())):
             self.disk_tab_layout.itemAt(i).widget().setParent(None)
@@ -347,6 +358,9 @@ class Resmon(QMainWindow):
         dialog = SystemInfoDialog(self)
         dialog.exec_()
 
+
+
+""" Dialog for starting a process """
 class StartProcessDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
