@@ -79,3 +79,9 @@ QScrollBar::handle:horizontal, QScrollBar::handle:vertical, QDialog QScrollBar::
     background: #cccccc;
     border-radius: 5px;
 }
+
+/* Graphs */
+RGraph {
+    color: #00bbff;
+    background-color: #ffffff;
+}

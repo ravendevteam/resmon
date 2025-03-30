@@ -1,6 +1,7 @@
 """ Import the necessary modules for the program to work """
 import sys
 import os
+import math
 import psutil
 import platform
 import subprocess
@@ -9,8 +10,10 @@ from PyQt5.QtGui import QFont
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QVBoxLayout, QHBoxLayout, QAction, QWidget,
     QDialog, QLineEdit, QFormLayout, QDialogButtonBox, QMessageBox, QMenu,
-    QTableWidget, QHeaderView, QSplitter, QTableWidgetItem, QLabel, QTextBrowser, QTabWidget, QProgressBar
+    QTableWidget, QHeaderView, QSplitter, QTableWidgetItem, QLabel, QTextBrowser, QTabWidget, QProgressBar,
+    QGridLayout
 )
+from components.graph import RGraph
 
 
 
@@ -43,10 +46,35 @@ def loadStyle():
 
 
 
+""" Utility function for getting a formatted memory string """
+def memory_string():
+    memory = psutil.virtual_memory()
+    total_memory = memory.total / (1024 ** 3)
+    return f"{total_memory:.2f} GB"
+
+
+
+""" Utility function for calculating the optimal CPU grid dimensions """
+def optimal_grid(n):
+    best_rows, best_cols = None, None
+    best_diff = float("inf")
+    target_ratio = math.sqrt(n)
+    for rows in range(1, n + 1):
+        cols = math.ceil(n / rows)
+        ratio = cols / rows
+        diff = abs(ratio - target_ratio)
+        if cols * rows >= n and diff < best_diff:
+            best_rows, best_cols = rows, cols
+            best_diff = diff
+    return best_rows, best_cols
+
+
+
 """ Thread for fetching the processes """
 class ProcessFetcher(QThread):
     update_processes = pyqtSignal(list)
     update_stats = pyqtSignal(float, float, str)
+    update_graphs = pyqtSignal(list, float)
     update_drives = pyqtSignal(list)
 
     def run(self):
@@ -64,7 +92,8 @@ class ProcessFetcher(QThread):
                     round(proc.info['cpu_percent'], 1)
                 ])
             self.update_processes.emit(processes_info)
-            cpu_usage = psutil.cpu_percent(interval=1)
+            cpu_core_usages = psutil.cpu_percent(interval=0.5, percpu=True)
+            cpu_usage = sum(cpu_core_usages) / len(cpu_core_usages)
             memory_info = psutil.virtual_memory()
             boot_drive = psutil.disk_partitions()[0].device
             disk_info = psutil.disk_usage(boot_drive)
@@ -73,6 +102,7 @@ class ProcessFetcher(QThread):
             used_percentage = used_disk / total_disk * 100
             disk_display = f"{used_percentage:.1f}%"
             self.update_stats.emit(cpu_usage, memory_info.percent, disk_display)
+            self.update_graphs.emit(cpu_core_usages, memory_info.percent)
             self.update_drives.emit(psutil.disk_partitions())
 
 
@@ -113,6 +143,7 @@ class Resmon(QMainWindow):
         self.init_ui()
         self.fetcher = ProcessFetcher()
         self.fetcher.update_processes.connect(self.update_process_table)
+        self.fetcher.update_graphs.connect(self.update_graphs)
         self.fetcher.update_drives.connect(self.update_drives)
         self.fetcher.update_stats.connect(self.update_stats)
         self.fetcher.start()
@@ -181,6 +212,22 @@ class Resmon(QMainWindow):
         bottom_layout = QVBoxLayout(bottom_widget)
         self.tabs = QTabWidget()
         self.tabs.addTab(self.process_table, "Processes")
+        self.graphs_tab = QWidget()
+        self.graphs_tab_layout = QVBoxLayout(self.graphs_tab)
+        self.graphs_tab_layout.setAlignment(Qt.AlignTop | Qt.AlignLeft)
+        num_cores = psutil.cpu_count(logical=True)
+        self.cpu_graphs = []
+        grid_rows, grid_cols = optimal_grid(num_cores)
+        self.cpu_graph_layout = QGridLayout()
+        for i in range(num_cores):
+            cpu_graph = RGraph(x_points=60, y_points=100, hue_offset=(120 // num_cores) * i, label=f"CPU #{i}")
+            self.cpu_graphs.append(cpu_graph)
+            self.cpu_graph_layout.addWidget(cpu_graph, i // grid_cols, i % grid_cols)
+        self.graphs_tab_layout.addLayout(self.cpu_graph_layout)
+        self.memory_graph = RGraph(x_points = 60, y_points = 1024, hue_offset = 270, label = f"Memory ({memory_string()})")
+        self.graphs_tab_layout.addWidget(self.memory_graph)
+        self.graphs_tab.setLayout(self.graphs_tab_layout)
+        self.tabs.addTab(self.graphs_tab, "Graphs")
         self.disk_tab = QWidget()
         self.disk_tab_layout = QVBoxLayout(self.disk_tab)
         self.disk_tab_layout.setAlignment(Qt.AlignTop)
@@ -237,6 +284,11 @@ class Resmon(QMainWindow):
                 row_to_select = row_position
         if row_to_select is not None:
             self.process_table.selectRow(row_to_select)
+
+    def update_graphs(self, cpu_usages, memory_usage):
+        for i, usage in enumerate(cpu_usages):
+            self.cpu_graphs[i].updateLatestDatapoint(usage)
+        self.memory_graph.updateLatestDatapoint(memory_usage)
 
     def update_drives(self, drive_data):
         if drive_data == self.prev_drive:
