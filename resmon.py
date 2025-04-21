@@ -5,6 +5,8 @@ import math
 import psutil
 import platform
 import subprocess
+import importlib.util
+
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from PyQt5.QtGui import QFont
 from PyQt5.QtWidgets import (
@@ -14,6 +16,30 @@ from PyQt5.QtWidgets import (
     QGridLayout
 )
 from components.graph import RGraph
+
+
+
+""" Utility function to load plugins """
+def load_plugins(app_context):
+    user_home = os.path.expanduser("~")
+    plugins_dir = os.path.join(user_home, "rmplugins")
+    os.makedirs(plugins_dir, exist_ok=True)
+    loaded_plugins = []
+    for filename in os.listdir(plugins_dir):
+        if filename.endswith(".py") and not filename.startswith("_"):
+            plugin_path = os.path.join(plugins_dir, filename)
+            mod_name = os.path.splitext(filename)[0]
+            spec = importlib.util.spec_from_file_location(mod_name, plugin_path)
+            module = importlib.util.module_from_spec(spec)
+            try:
+                spec.loader.exec_module(module)
+                if hasattr(module, "register_plugin"):
+                    module.register_plugin(app_context)
+                    loaded_plugins.append(mod_name)
+                    print(f"Plugin '{mod_name}' loaded successfully from {plugins_dir}")
+            except Exception as e:
+                print(f"Failed to load plugin '{filename}' from {plugins_dir}: {e}")
+    return loaded_plugins
 
 
 
@@ -147,6 +173,8 @@ class Resmon(QMainWindow):
         self.fetcher.update_drives.connect(self.update_drives)
         self.fetcher.update_stats.connect(self.update_stats)
         self.fetcher.start()
+        app_context = {"main_window": self}
+        self.plugins = load_plugins(app_context)
 
     def init_ui(self):
         loadStyle()
