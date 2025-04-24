@@ -8,7 +8,7 @@ import subprocess
 import importlib.util
 
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
-from PyQt5.QtGui import QFont
+from PyQt5.QtGui import QIcon, QFont
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QVBoxLayout, QHBoxLayout, QAction, QWidget,
     QDialog, QLineEdit, QFormLayout, QDialogButtonBox, QMessageBox, QMenu,
@@ -19,10 +19,30 @@ from components.graph import RGraph
 
 
 
-""" Utility function to load plugins """
+""" Utility function to load icons """
+def load_icon(icon_name):
+    icon_path = os.path.join(os.path.dirname(__file__), icon_name)
+    if getattr(sys, 'frozen', False):
+        icon_path = os.path.join(sys._MEIPASS, icon_name)
+    if os.path.exists(icon_path):
+        return QIcon(icon_path)
+    return None
+
+
+
+""" Utility function to load plugins
+
+This function checks for a "Resmonplugins" directory located in your user folder.
+If the folder doesn't exist, it creates it. It then loads every Python file in the
+folder (ignoring files starting with an underscore) and, if the module defines a
+"register_plugin(app_context)" function, calls it. The app_context is a dictionary
+containing a reference to the main window, so plugins can integrate with Construct
+(e.g., by adding menu items). Plugins should be written in Python. They do not
+require a separate Python installation.
+"""
 def load_plugins(app_context):
     user_home = os.path.expanduser("~")
-    plugins_dir = os.path.join(user_home, "rmplugins")
+    plugins_dir = os.path.join(user_home, "resmonplugins")
     os.makedirs(plugins_dir, exist_ok=True)
     loaded_plugins = []
     for filename in os.listdir(plugins_dir):
@@ -162,6 +182,7 @@ class Resmon(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Resmon")
+        self.setWindowIcon(load_icon('resmon.png'))
         self.setGeometry(100, 100, 770, 700)
         self.always_on_top = False
         self.selected_pid = None
